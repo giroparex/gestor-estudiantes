@@ -1,0 +1,5 @@
+{
+  "name": "Gestor de Estudiantes JSON Pro",
+  "description": "Una herramienta sofisticada para gestionar datos de estudiantes que permite crear, editar y exportar listas en formato JSON, con generación y limpieza de datos asistida por IA.",
+  "requestFramePermissions": []
+}
