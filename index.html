@@ -3,8 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestor Alumnos Pro - Cloud Sync</title>
+    <title>Gestor Alumnos Pro</title>
     
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet"/>
+    <title>Gestor Alumnos Pro - Cloud Sync</title>
+
     <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
@@ -18,6 +22,9 @@
     </script>
 
     <style>
+        body { font-family: 'Lexend', sans-serif; background-color: #f1f5f9; }
+        .student-card { transition: all 0.2s ease; border: 1px solid #e2e8f0; }
+        .student-card:hover { transform: translateY(-2px); border-color: #6366f1; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
         body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
         .student-card { transition: all 0.3s ease; border: 1px solid #e2e8f0; }
         .student-card:hover { transform: translateY(-3px); shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-color: #6366f1; }
@@ -28,6 +35,7 @@
     <div id="root"></div>
 
     <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
         const { useState, useEffect } = React;
 
         // --- CONFIGURACIÓN DEL REPOSITORIO ---
@@ -42,12 +50,18 @@
             const [search, setSearch] = useState("");
             const [ghToken, setGhToken] = useState(localStorage.getItem('gh_token_seguro') || "");
             const [isSaving, setIsSaving] = useState(false);
+            
+            // Filtros
+            const [sortBy, setSortBy] = useState("recent");
+            const [filterCourse, setFilterCourse] = useState("ALL");
 
             // 1. CARGAR DATOS DESDE GITHUB AL INICIAR
             useEffect(() => {
                 const url = `https://raw.githubusercontent.com/${GITHUB_REPO}/main/${FILE_PATH}?t=${Date.now()}`;
                 fetch(url)
                     .then(res => res.json())
+                    .then(data => { if (Array.isArray(data)) setStudents(data); })
+                    .catch(() => console.log("Carga inicial lista"));
                     .then(data => {
                         if (Array.isArray(data)) setStudents(data);
                     })
@@ -56,6 +70,7 @@
 
             // 2. FUNCIÓN PARA GUARDAR EN GITHUB (API)
             const saveToGitHub = async () => {
+                if (!ghToken) return alert("Falta Token");
                 if (!ghToken) return alert("Por favor, introduce tu Token de GitHub arriba.");
                 setIsSaving(true);
                 
@@ -64,6 +79,7 @@
                     const resFile = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${FILE_PATH}`, {
                         headers: { Authorization: `token ${ghToken}` }
                     });
+                    let sha = resFile.ok ? (await resFile.json()).sha : "";
                     
                     let sha = "";
                     if (resFile.ok) {
@@ -73,9 +89,12 @@
 
                     // Convertir JSON a Base64 (formato que pide GitHub)
                     const content = btoa(unescape(encodeURIComponent(JSON.stringify(students, null, 2))));
+                    await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${FILE_PATH}`, {
                     
                     const resUpdate = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${FILE_PATH}`, {
                         method: 'PUT',
+                        headers: { Authorization: `token ${ghToken}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: "Update", content, sha: sha || undefined })
                         headers: { 
                             Authorization: `token ${ghToken}`,
                             'Content-Type': 'application/json'
@@ -86,6 +105,9 @@
                             sha: sha || undefined 
                         })
                     });
+                    alert("✅ Guardado");
+                } catch (e) { alert("❌ Error"); }
+                finally { setIsSaving(false); }
 
                     if (resUpdate.ok) {
                         alert("✅ ¡Sincronizado con GitHub! Los datos ya están guardados en la nube.");
@@ -103,6 +125,19 @@
                 setStudents([newS, ...students]);
             };
 
+            // Procesamos la lista (Filtro y Orden)
+            const displayList = useMemo(() => {
+                return students
+                    .filter(s => {
+                        const nameMatches = (s.name || "").toLowerCase().includes(search.toLowerCase());
+                        const courseMatches = filterCourse === "ALL" || s.course === filterCourse;
+                        return nameMatches && courseMatches;
+                    })
+                    .sort((a, b) => {
+                        if (sortBy === "name") return (a.name || "").localeCompare(b.name || "");
+                        return 0;
+                    });
+            }, [students, search, sortBy, filterCourse]);
             const handlePhoto = (id, file) => {
                 if (!file) return;
                 const reader = new FileReader();
@@ -127,6 +162,12 @@
             };
 
             return (
+                <div className="max-w-5xl mx-auto p-4 md:p-8">
+                    <header className="no-print bg-white p-6 rounded-3xl shadow-sm border mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+                        <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                            <span className="material-icons-round text-indigo-600">school</span> GESTOR PRO
+                        </h1>
+                        <div className="flex gap-2">
                 <div className="max-w-6xl mx-auto p-4 md:p-8">
                     {/* BARRA SUPERIOR DE SINCRONIZACIÓN */}
                     <header className="no-print bg-white p-4 rounded-3xl shadow-sm border mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
@@ -138,14 +179,19 @@
                         <div className="flex flex-wrap justify-center gap-2">
                             <input 
                                 type="password" 
+                                placeholder="Token GitHub"
+                                className="border p-2 rounded-xl text-xs w-32 outline-none focus:ring-1 ring-indigo-400"
                                 placeholder="Token de GitHub (ghp_...)"
                                 className="border bg-slate-50 p-2 rounded-xl text-xs w-48 outline-none focus:ring-2 ring-indigo-500"
                                 value={ghToken}
+                                onChange={(e) => { setGhToken(e.target.value); localStorage.setItem('gh_token_seguro', e.target.value); }}
                                 onChange={(e) => {
                                     setGhToken(e.target.value);
                                     localStorage.setItem('gh_token_seguro', e.target.value);
                                 }}
                             />
+                            <button onClick={saveToGitHub} className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold text-xs hover:opacity-90">
+                                {isSaving ? "..." : "GUARDAR"}
                             <button 
                                 onClick={saveToGitHub}
                                 disabled={isSaving}
@@ -156,13 +202,36 @@
                         </div>
                     </header>
 
+                    <div className="no-print flex gap-2 mb-6">
                     {/* BUSCADOR Y ACCIONES */}
                     <div className="no-print flex flex-wrap gap-4 mb-8">
                         <input 
+                            className="flex-1 p-4 rounded-2xl border shadow-sm outline-none focus:border-indigo-500" 
+                            placeholder="Buscar alumno..." 
+                            onChange={(e) => setSearch(e.target.value)} 
                             className="flex-1 min-w-[250px] p-4 rounded-2xl border-none shadow-sm outline-none focus:ring-2 ring-indigo-500" 
                             placeholder="Buscar alumno por nombre..."
                             onChange={(e) => setSearch(e.target.value)}
                         />
+                        <button onClick={addStudent} className="bg-slate-900 text-white px-6 py-4 rounded-2xl font-bold hover:bg-slate-800">+ NUEVO</button>
+                    </div>
+
+                    {/* SECCIÓN DE ORDENAR Y FILTRAR */}
+                    <div className="no-print grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 bg-indigo-50/30 p-4 rounded-2xl border border-dashed border-indigo-200">
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-bold text-indigo-500 uppercase ml-1">Ordenar</span>
+                            <select className="p-2 rounded-xl border bg-white text-sm outline-none" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+                                <option value="recent">Nuevos primero</option>
+                                <option value="name">Nombre (A-Z)</option>
+                            </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-bold text-indigo-500 uppercase ml-1">Filtrar por curso</span>
+                            <select className="p-2 rounded-xl border bg-white text-sm outline-none font-semibold text-indigo-700" value={filterCourse} onChange={(e) => setFilterCourse(e.target.value)}>
+                                <option value="ALL">TODOS LOS CURSOS</option>
+                                {COURSE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </div>
                         <button onClick={addStudent} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-bold hover:bg-slate-800 transition-all">+ NUEVO</button>
                         <button onClick={generateIA} disabled={loading} className="bg-purple-600 text-white px-6 py-4 rounded-2xl font-bold flex gap-2 items-center hover:bg-purple-700 disabled:opacity-50 shadow-lg shadow-purple-100">
                             {loading ? "..." : "IA ✨"}
@@ -171,6 +240,10 @@
 
                     {/* LISTA DE ALUMNOS */}
                     <div className="grid gap-4">
+                        {displayList.map(s => (
+                            <div key={s.id} className="student-card bg-white p-4 rounded-3xl flex flex-col md:flex-row gap-4 items-center">
+                                <div className="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center border shrink-0 overflow-hidden">
+                                    {s.photo ? <img src={s.photo} className="w-full h-full object-cover" /> : <span className="text-xl">👤</span>}
                         {students.filter(s => s.name.toLowerCase().includes(search.toLowerCase())).map(s => (
                             <div key={s.id} className="student-card bg-white p-6 rounded-[2.5rem] flex flex-col lg:flex-row gap-6 items-center">
                                 
@@ -182,6 +255,12 @@
                                     <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handlePhoto(s.id, e.target.files[0])} />
                                     <div className="absolute -bottom-1 -right-1 bg-white p-1 rounded-full border shadow-sm no-print">📸</div>
                                 </div>
+                                <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 w-full text-sm">
+                                    <input className="font-bold border-b outline-none focus:border-indigo-500 p-1" value={s.name} placeholder="Nombre" onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, name: e.target.value} : st))} />
+                                    <input className="border-b outline-none p-1" value={s.phone1} placeholder="Teléfono" onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, phone1: e.target.value} : st))} />
+                                    <select className="font-bold text-indigo-600 bg-transparent" value={s.course} onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, course: e.target.value} : st))}>
+                                        {COURSE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
 
                                 {/* DATOS */}
                                 <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
@@ -212,6 +291,8 @@
                                         <input type="number" className="font-bold text-slate-800 outline-none border-b focus:border-indigo-500" value={s.age} onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, age: e.target.value} : st))} />
                                     </div>
                                 </div>
+                                <button onClick={() => setStudents(students.filter(st => st.id !== s.id))} className="text-slate-300 hover:text-red-500 px-2">
+                                    <span className="material-icons-round">delete</span>
 
                                 <button onClick={() => setStudents(students.filter(st => st.id !== s.id))} className="text-slate-200 hover:text-red-500 transition no-print">
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/></svg>
