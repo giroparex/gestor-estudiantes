@@ -42,6 +42,10 @@
             const [search, setSearch] = useState("");
             const [ghToken, setGhToken] = useState(localStorage.getItem('gh_token_seguro') || "");
             const [isSaving, setIsSaving] = useState(false);
+            
+            // NUEVOS ESTADOS PARA ORDEN Y FILTRO
+            const [sortBy, setSortBy] = useState("default");
+            const [filterCourse, setFilterCourse] = useState("ALL");
 
             // 1. CARGAR DATOS DESDE GITHUB AL INICIAR
             useEffect(() => {
@@ -60,7 +64,6 @@
                 setIsSaving(true);
                 
                 try {
-                    // Obtener el SHA del archivo actual para poder sobrescribirlo
                     const resFile = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${FILE_PATH}`, {
                         headers: { Authorization: `token ${ghToken}` }
                     });
@@ -71,7 +74,6 @@
                         sha = fileData.sha;
                     }
 
-                    // Convertir JSON a Base64 (formato que pide GitHub)
                     const content = btoa(unescape(encodeURIComponent(JSON.stringify(students, null, 2))));
                     
                     const resUpdate = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${FILE_PATH}`, {
@@ -126,12 +128,24 @@
                 finally { setLoading(false); }
             };
 
+            // LÓGICA DE PROCESAMIENTO DE LISTA (FILTRO + ORDEN)
+            const processedStudents = students
+                .filter(s => {
+                    const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase());
+                    const matchesCourse = filterCourse === "ALL" || s.course === filterCourse;
+                    return matchesSearch && matchesCourse;
+                })
+                .sort((a, b) => {
+                    if (sortBy === "name") return a.name.localeCompare(b.name);
+                    return 0;
+                });
+
             return (
                 <div className="max-w-6xl mx-auto p-4 md:p-8">
                     {/* BARRA SUPERIOR DE SINCRONIZACIÓN */}
                     <header className="no-print bg-white p-4 rounded-3xl shadow-sm border mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
                         <div className="flex items-center gap-2">
-                            <span class="material-icons-round" style="vertical-align: middle; margin-right: 5px;">groups</span>
+                            <span className="material-icons-round" style={{verticalAlign: 'middle', marginRight: '5px'}}>groups</span>
                             <h1 className="font-black text-slate-800 tracking-tighter uppercase">Gestor Alumnos</h1>
                         </div>
                         
@@ -152,79 +166,3 @@
                                 className={`${isSaving ? 'bg-slate-400' : 'bg-emerald-600'} text-white px-5 py-2 rounded-xl font-bold text-xs flex items-center gap-2 hover:bg-emerald-700 transition-all`}
                             >
                                 {isSaving ? "Guardando..." : "☁️ Guardar en GitHub"}
-                            </button>
-                        </div>
-                    </header>
-
-                    {/* BUSCADOR Y ACCIONES */}
-                    <div className="no-print flex flex-wrap gap-4 mb-8">
-                        <input 
-                            className="flex-1 min-w-[250px] p-4 rounded-2xl border-none shadow-sm outline-none focus:ring-2 ring-indigo-500" 
-                            placeholder="Buscar alumno por nombre..."
-                            onChange={(e) => setSearch(e.target.value)}
-                        />
-                        <button onClick={addStudent} className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-bold hover:bg-slate-800 transition-all">+ NUEVO</button>
-                        <button onClick={generateIA} disabled={loading} className="bg-purple-600 text-white px-6 py-4 rounded-2xl font-bold flex gap-2 items-center hover:bg-purple-700 disabled:opacity-50 shadow-lg shadow-purple-100">
-                            {loading ? "..." : "IA ✨"}
-                        </button>
-                    </div>
-
-                    {/* LISTA DE ALUMNOS */}
-                    <div className="grid gap-4">
-                        {students.filter(s => s.name.toLowerCase().includes(search.toLowerCase())).map(s => (
-                            <div key={s.id} className="student-card bg-white p-6 rounded-[2.5rem] flex flex-col lg:flex-row gap-6 items-center">
-                                
-                                {/* FOTO */}
-                                <div className="relative shrink-0 group">
-                                    <div className="w-24 h-24 bg-slate-100 rounded-[2rem] overflow-hidden border-2 border-dashed border-slate-200 flex items-center justify-center">
-                                        {s.photo ? <img src={s.photo} className="w-full h-full object-cover" /> : <span className="text-3xl text-slate-300">👤</span>}
-                                    </div>
-                                    <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handlePhoto(s.id, e.target.files[0])} />
-                                    <div className="absolute -bottom-1 -right-1 bg-white p-1 rounded-full border shadow-sm no-print">📸</div>
-                                </div>
-
-                                {/* DATOS */}
-                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
-                                    <div className="flex flex-col">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Nombre</label>
-                                        <input className="font-bold text-slate-800 outline-none border-b focus:border-indigo-500 transition-colors" value={s.name} placeholder="Nombre completo" onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, name: e.target.value} : st))} />
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Teléfono Principal</label>
-                                        <input className="text-slate-600 outline-none border-b focus:border-indigo-500" value={s.phone1} placeholder="Número 1" onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, phone1: e.target.value} : st))} />
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Teléfono Secundario</label>
-                                        <input className="text-slate-600 outline-none border-b focus:border-indigo-500" value={s.phone2} placeholder="Número 2" onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, phone2: e.target.value} : st))} />
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Curso</label>
-                                        <select className="font-bold text-indigo-600 bg-transparent outline-none" value={s.course} onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, course: e.target.value} : st))}>
-                                            {COURSE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Email</label>
-                                        <input className="text-sm text-slate-500 outline-none border-b focus:border-indigo-500" value={s.email} placeholder="correo@ejemplo.com" onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, email: e.target.value} : st))} />
-                                    </div>
-                                    <div className="flex flex-col w-16">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Edad</label>
-                                        <input type="number" className="font-bold text-slate-800 outline-none border-b focus:border-indigo-500" value={s.age} onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, age: e.target.value} : st))} />
-                                    </div>
-                                </div>
-
-                                <button onClick={() => setStudents(students.filter(st => st.id !== s.id))} className="text-slate-200 hover:text-red-500 transition no-print">
-                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/></svg>
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            );
-        };
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
