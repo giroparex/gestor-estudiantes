@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Estudiantes IA</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script type="module">
+        import { GoogleGenAI } from "https://esm.sh/@google/genai@1.0.2";
+        window.GoogleGenAI = GoogleGenAI;
+    </script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .card { background: white; border-radius: 1rem; border: 1px solid #e2e8f0; padding: 1.5rem; transition: all 0.2s; }
+        .card:hover { border-color: #6366f1; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        @media print { .no-print { display: none !important; } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // --- CONFIGURACIÓN Y SERVICIO ---
+        const API_KEY = "AIzaSyCNZCUPHQ6NmoYZ9BBqJOJvYy98SFTOuMw";
+        const COURSE_OPTIONS = ["LUNES A VIERNES", "V, S Y D", "INTENSIVO 1", "INTENSIVO 2"];
+
+        const App = () => {
+            const [students, setStudents] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [search, setSearch] = useState("");
+
+            const addStudent = () => {
+                const newStudent = {
+                    id: Date.now().toString(),
+                    name: "", age: 20, email: "", course: "LUNES A VIERNES"
+                };
+                setStudents([newStudent, ...students]);
+            };
+
+            const updateStudent = (id, field, value) => {
+                setStudents(students.map(s => s.id === id ? {...s, [field]: value} : s));
+            };
+
+            const deleteStudent = (id) => {
+                setStudents(students.filter(s => s.id !== id));
+            };
+
+            const generateWithIA = async () => {
+                if (!window.GoogleGenAI) return alert("Cargando IA, intenta de nuevo...");
+                setLoading(true);
+                try {
+                    const genAI = new window.GoogleGenAI(API_KEY);
+                    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+                    
+                    const prompt = `Genera 3 estudiantes JSON con estos campos: id, name, age, email, course. Los cursos deben ser uno de: ${COURSE_OPTIONS.join(", ")}. Solo devuelve el JSON puro.`;
+                    const result = await model.generateContent(prompt);
+                    const text = await result.response.text();
+                    const cleanJson = JSON.parse(text.replace(/```json|```/g, ""));
+                    
+                    setStudents([...cleanJson, ...students]);
+                } catch (e) {
+                    console.error(e);
+                    alert("Error con la IA: Revisa tu conexión");
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const exportData = () => {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(students));
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute("href", dataStr);
+                downloadAnchorNode.setAttribute("download", "estudiantes.json");
+                downloadAnchorNode.click();
+            };
+
+            return (
+                <div className="max-w-4xl mx-auto p-4 md:p-8">
+                    {/* Header */}
+                    <header className="flex justify-between items-center mb-8 no-print">
+                        <h1 className="text-2xl font-bold text-indigo-600 flex items-center gap-2">
+                             Gestor de Alumnos
+                        </h1>
+                        <div className="flex gap-2">
+                            <button onClick={() => window.print()} className="p-2 border rounded-lg hover:bg-gray-50 text-gray-600">Imprimir</button>
+                        </div>
+                    </header>
+
+                    {/* Toolbar */}
+                    <div className="no-print bg-white p-4 rounded-2xl shadow-sm mb-6 flex flex-wrap gap-3">
+                        <input 
+                            className="flex-1 min-w-[200px] border p-2 rounded-xl bg-gray-50 outline-none focus:ring-2 ring-indigo-100" 
+                            placeholder="Buscar alumno..."
+                            onChange={(e) => setSearch(e.target.value)}
+                        />
+                        <button onClick={addStudent} className="bg-indigo-600 text-white px-5 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
+                            + Nuevo
+                        </button>
+                        <button onClick={generateWithIA} disabled={loading} className="bg-purple-600 text-white px-5 py-2 rounded-xl font-semibold hover:bg-purple-700 disabled:opacity-50 transition">
+                            {loading ? "Generando..." : "Mágia IA"}
+                        </button>
+                        <button onClick={exportData} className="bg-emerald-600 text-white px-5 py-2 rounded-xl font-semibold hover:bg-emerald-700">
+                            Descargar
+                        </button>
+                    </div>
+
+                    {/* Listado */}
+                    <div className="grid gap-4">
+                        {students.filter(s => s.name.toLowerCase().includes(search.toLowerCase())).map(student => (
+                            <div key={student.id} className="card flex flex-col md:flex-row gap-4 items-start">
+                                <div className="bg-indigo-50 w-16 h-16 rounded-full flex items-center justify-center text-indigo-400">
+                                    👤
+                                </div>
+                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
+                                    <input 
+                                        className="font-bold text-lg outline-none border-b border-transparent focus:border-indigo-300 w-full"
+                                        value={student.name}
+                                        placeholder="Nombre del estudiante"
+                                        onChange={(e) => updateStudent(student.id, 'name', e.target.value)}
+                                    />
+                                    <input 
+                                        className="text-gray-500 outline-none border-b border-transparent focus:border-indigo-300 w-full"
+                                        value={student.email}
+                                        placeholder="correo@ejemplo.com"
+                                        onChange={(e) => updateStudent(student.id, 'email', e.target.value)}
+                                    />
+                                    <div className="flex gap-2 items-center">
+                                        <span className="text-xs font-bold text-gray-400">CURSO:</span>
+                                        <select 
+                                            className="text-sm bg-transparent outline-none text-indigo-600 font-semibold"
+                                            value={student.course}
+                                            onChange={(e) => updateStudent(student.id, 'course', e.target.value)}
+                                        >
+                                            {COURSE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="flex gap-2 items-center">
+                                        <span className="text-xs font-bold text-gray-400">EDAD:</span>
+                                        <input 
+                                            type="number" 
+                                            className="w-12 outline-none" 
+                                            value={student.age} 
+                                            onChange={(e) => updateStudent(student.id, 'age', e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                                <button onClick={() => deleteStudent(student.id)} className="text-red-300 hover:text-red-500 transition no-print">
+                                    Eliminar
+                                </button>
+                            </div>
+                        ))}
+                        {students.length === 0 && (
+                            <div className="text-center py-20 text-gray-400 italic">
+                                No hay alumnos. Usa "Nuevo" o "Mágia IA" para empezar.
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
