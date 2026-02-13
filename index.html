@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor Alumnos Pro - Cloud Sync</title>
     <title>Gestor Alumnos Pro</title>
-    
+
     <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;600;700&display=swap" rel="stylesheet"/>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet"/>
     <title>Gestor Alumnos Pro - Cloud Sync</title>
@@ -73,14 +74,14 @@
                 if (!ghToken) return alert("Falta Token");
                 if (!ghToken) return alert("Por favor, introduce tu Token de GitHub arriba.");
                 setIsSaving(true);
-                
+
                 try {
                     // Obtener el SHA del archivo actual para poder sobrescribirlo
                     const resFile = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${FILE_PATH}`, {
                         headers: { Authorization: `token ${ghToken}` }
                     });
                     let sha = resFile.ok ? (await resFile.json()).sha : "";
-                    
+
                     let sha = "";
                     if (resFile.ok) {
                         const fileData = await resFile.json();
@@ -90,7 +91,7 @@
                     // Convertir JSON a Base64 (formato que pide GitHub)
                     const content = btoa(unescape(encodeURIComponent(JSON.stringify(students, null, 2))));
                     await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${FILE_PATH}`, {
-                    
+
                     const resUpdate = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${FILE_PATH}`, {
                         method: 'PUT',
                         headers: { Authorization: `token ${ghToken}`, 'Content-Type': 'application/json' },
@@ -175,7 +176,7 @@
                             <span class="material-icons-round" style="vertical-align: middle; margin-right: 5px;">groups</span>
                             <h1 className="font-black text-slate-800 tracking-tighter uppercase">Gestor Alumnos</h1>
                         </div>
-                        
+
                         <div className="flex flex-wrap justify-center gap-2">
                             <input 
                                 type="password" 
@@ -246,7 +247,7 @@
                                     {s.photo ? <img src={s.photo} className="w-full h-full object-cover" /> : <span className="text-xl">👤</span>}
                         {students.filter(s => s.name.toLowerCase().includes(search.toLowerCase())).map(s => (
                             <div key={s.id} className="student-card bg-white p-6 rounded-[2.5rem] flex flex-col lg:flex-row gap-6 items-center">
-                                
+
                                 {/* FOTO */}
                                 <div className="relative shrink-0 group">
                                     <div className="w-24 h-24 bg-slate-100 rounded-[2rem] overflow-hidden border-2 border-dashed border-slate-200 flex items-center justify-center">
