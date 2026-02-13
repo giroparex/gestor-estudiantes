@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestor Alumnos - Auto-Guardado GitHub</title>
+    <title>Gestor Alumnos Pro - Cloud Sync</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -12,142 +13,36 @@
         import { GoogleGenAI } from "https://esm.run/@google/genai";
         window.GoogleGenAI = GoogleGenAI;
     </script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        .student-card { transition: all 0.3s ease; border: 1px solid #e2e8f0; }
+        .student-card:hover { transform: translateY(-3px); shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-color: #6366f1; }
+        @media print { .no-print { display: none !important; } }
+    </style>
 </head>
-<body class="bg-slate-50">
+<body>
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // --- CONFIGURACIÓN ---
-        const API_KEY_GEMINI = "AIzaSyCNZCUPHQ6NmoYZ9BBqJOJvYy98SFTOuMw";
-        const GITHUB_REPO = "giroparex/gestor-estudiantes"; // TU REPO
-        const FILE_PATH = "alumnos.json"; // NOMBRE DEL ARCHIVO EN GITHUB
+        // --- CONFIGURACIÓN DEL REPOSITORIO ---
+        const GITHUB_REPO = "giroparex/gestor-estudiantes"; 
+        const FILE_PATH = "alumnos.json";
+        const GEMINI_KEY = "AIzaSyCNZCUPHQ6NmoYZ9BBqJOJvYy98SFTOuMw";
         const COURSE_OPTIONS = ["LUNES A VIERNES", "V, S Y D", "INTENSIVO 1", "INTENSIVO 2"];
 
         const App = () => {
             const [students, setStudents] = useState([]);
             const [loading, setLoading] = useState(false);
-            const [ghToken, setGhToken] = useState(localStorage.getItem('gh_token') || "");
+            const [search, setSearch] = useState("");
+            const [ghToken, setGhToken] = useState(localStorage.getItem('gh_token_seguro') || "");
             const [isSaving, setIsSaving] = useState(false);
 
-            // 1. CARGAR DATOS DESDE GITHUB AL ABRIR
+            // 1. CARGAR DATOS DESDE GITHUB AL INICIAR
             useEffect(() => {
-                fetch(`https://raw.githubusercontent.com/${GITHUB_REPO}/main/${FILE_PATH}?t=${Date.now()}`)
+                const url = `https://raw.githubusercontent.com/${GITHUB_REPO}/main/${FILE_PATH}?t=${Date.now()}`;
+                fetch(url)
                     .then(res => res.json())
-                    .then(data => setStudents(data))
-                    .catch(err => console.log("No se encontró archivo previo en GitHub"));
-            }, []);
-
-            // 2. FUNCIÓN PARA GUARDAR EN GITHUB
-            const saveToGitHub = async () => {
-                if (!ghToken) return alert("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");
-                setIsSaving(true);
-                
-                try {
-                    // Obtener el SHA del archivo actual (necesario para actualizar en GitHub)
-                    const resFile = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${FILE_PATH}`, {
-                        headers: { Authorization: `token ${ghToken}` }
-                    });
-                    const fileData = await resFile.json();
-                    const sha = fileData.sha;
-
-                    // Subir nueva versión
-                    const content = btoa(unescape(encodeURIComponent(JSON.stringify(students, null, 2))));
-                    const resUpdate = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${FILE_PATH}`, {
-                        method: 'PUT',
-                        headers: { 
-                            Authorization: `token ${ghToken}`,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            message: "Actualización de alumnos vía App",
-                            content: content,
-                            sha: sha
-                        })
-                    });
-
-                    if (resUpdate.ok) alert("¡Guardado en GitHub con éxito!");
-                    else alert("Error al guardar. Revisa el Token.");
-                } catch (e) {
-                    alert("Error de conexión con GitHub");
-                } finally { setIsSaving(false); }
-            };
-
-            const addStudent = () => {
-                const newS = { id: crypto.randomUUID(), name: "", email: "", phone1: "", phone2: "", course: "LUNES A VIERNES", age: 20, photo: null };
-                setStudents([newS, ...students]);
-            };
-
-            return (
-                <div className="max-w-5xl mx-auto p-6">
-                    <header className="flex justify-between items-center mb-8 bg-white p-6 rounded-3xl shadow-sm">
-                        <h1 class="font-black text-xl text-indigo-600">SISTEMA GITHUB CLOUD</h1>
-                        <div className="flex gap-2">
-                            <input 
-                                type="password" 
-                                placeholder="Pega aquí tu Token de GitHub"
-                                className="border p-2 rounded-xl text-xs w-40"
-                                value={ghToken}
-                                onChange={(e) => {
-                                    setGhToken(e.target.value);
-                                    localStorage.setItem('gh_token', e.target.value);
-                                }}
-                            />
-                            <button 
-                                onClick={saveToGitHub}
-                                disabled={isSaving}
-                                className="bg-emerald-500 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-emerald-600"
-                            >
-                                {isSaving ? "Guardando..." : "☁️ Sincronizar GitHub"}
-                            </button>
-                        </div>
-                    </header>
-
-                    <div className="mb-6 flex gap-4">
-                        <button onClick={addStudent} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold">+ Nuevo Alumno</button>
-                    </div>
-
-                    <div className="grid gap-4">
-                        {students.map(s => (
-                            <div key={s.id} className="bg-white p-6 rounded-[2rem] border flex gap-6 items-center shadow-sm">
-                                <div className="flex-1 grid grid-cols-2 gap-4">
-                                    <input 
-                                        className="font-bold border-b outline-none focus:border-indigo-500" 
-                                        value={s.name} 
-                                        placeholder="Nombre"
-                                        onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, name: e.target.value} : st))}
-                                    />
-                                    <input 
-                                        className="text-slate-500 border-b outline-none" 
-                                        value={s.phone1} 
-                                        placeholder="Teléfono 1"
-                                        onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, phone1: e.target.value} : st))}
-                                    />
-                                    <input 
-                                        className="text-slate-500 border-b outline-none" 
-                                        value={s.phone2} 
-                                        placeholder="Teléfono 2"
-                                        onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, phone2: e.target.value} : st))}
-                                    />
-                                    <select 
-                                        className="text-indigo-600 font-bold bg-transparent"
-                                        value={s.course}
-                                        onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, course: e.target.value} : st))}
-                                    >
-                                        {COURSE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
-                                </div>
-                                <button onClick={() => setStudents(students.filter(st => st.id !== s.id))} className="text-red-400">✕</button>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            );
-        };
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
+                    .then
