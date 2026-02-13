@@ -1,53 +1,211 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gestor de Estudiantes JSON Pro</title>
-  
-  <script src="https://cdn.tailwindcss.com"></script>
-  
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Estudiantes Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom": "https://esm.sh/react-dom@18.2.0/client",
+            "@google/genai": "https://esm.sh/@google/genai@1.0.2",
+            "lucide-react": "https://esm.sh/lucide-react@0.284.0"
+        }
+    }
+    </script>
 
-  <style>
-    body {
-      font-family: 'Inter', sans-serif;
-      background-color: #f8fafc;
-      margin: 0;
-    }
-
-    @media print {
-      body { background-color: white !important; }
-      nav, .fixed, button, .no-print, select, input[type="file"], .bg-slate-50 {
-        display: none !important;
-      }
-      main { margin: 0 !important; padding: 0 !important; max-width: 100% !important; }
-      .bg-white { border: 1px solid #eee !important; box-shadow: none !important; margin-bottom: 10px !important; }
-    }
-  </style>
-  
-  <script type="importmap">
-  {
-    "imports": {
-      "react": "https://esm.sh/react@18.2.0",
-      "react-dom": "https://esm.sh/react-dom@18.2.0",
-      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-      "@google/genai": "https://esm.sh/@google/genai@1.0.2",
-      "lucide-react": "https://esm.sh/lucide-react@0.284.0"
-    }
-  }
-  </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        @media print { .no-print { display: none !important; } }
+    </style>
 </head>
 <body>
-  <div id="root"></div>
+    <div id="root"></div>
 
-  <script type="text/babel" data-type="module" src="./types.ts"></script>
-  <script type="text/babel" data-type="module" src="./geminiService.ts"></script>
-  <script type="text/babel" data-type="module" src="./App.tsx"></script>
-  <script type="text/babel" data-type="module" src="./index.tsx"></script>
+    <script type="text/babel">
+        import React, { useState, useEffect, useRef } from 'react';
+        import { createRoot } from 'react-dom';
+        import { 
+            Users, Plus, Download, Upload, Trash2, Sparkles, 
+            Search, CheckCircle, Camera, User, Phone, 
+            BookOpen, Mail, Calendar, ArrowUpDown, SortAsc, SortDesc, Printer, AlertCircle 
+        } from 'lucide-react';
+        import { GoogleGenAI, Type } from "@google/genai";
+
+        // --- CONFIGURACIÓN ---
+        const API_KEY = "AIzaSyCNZCUPHQ6NmoYZ9BBqJOJvYy98SFTOuMw";
+        const COURSE_OPTIONS = ["LUNES A VIERNES", "V, S Y D", "INTENSIVO 1", "INTENSIVO 2"];
+
+        // --- SERVICIO DE IA ---
+        const genAI = new GoogleGenAI(API_KEY);
+        const model = genAI.getGenerativeModel({
+            model: "gemini-1.5-flash",
+            generationConfig: { responseMimeType: "application/json" }
+        });
+
+        const generateAiStudents = async (count) => {
+            const prompt = `Genera ${count} estudiantes JSON. Cursos: ${COURSE_OPTIONS.join(', ')}. Sin fotos.`;
+            const result = await model.generateContent({
+                contents: [{ role: "user", parts: [{ text: prompt }] }],
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                id: { type: Type.STRING },
+                                name: { type: Type.STRING },
+                                age: { type: Type.NUMBER },
+                                email: { type: Type.STRING },
+                                phone1: { type: Type.STRING },
+                                phone2: { type: Type.STRING },
+                                course: { type: Type.STRING },
+                                photo: { type: Type.STRING }
+                            }
+                        }
+                    }
+                }
+            });
+            return JSON.parse(result.response.text());
+        };
+
+        // --- COMPONENTE PRINCIPAL ---
+        const App = () => {
+            const [students, setStudents] = useState([]);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [isLoading, setIsLoading] = useState(false);
+            const [feedback, setFeedback] = useState(null);
+            const fileInputRefs = useRef({});
+
+            const handleAddStudent = () => {
+                const newStudent = {
+                    id: crypto.randomUUID(),
+                    name: '', age: 18, email: '', phone1: '', phone2: '',
+                    course: 'LUNES A VIERNES', photo: ''
+                };
+                setStudents([newStudent, ...students]);
+            };
+
+            const handleUpdate = (id, field, value) => {
+                setStudents(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
+            };
+
+            const handleAiGenerate = async () => {
+                setIsLoading(true);
+                try {
+                    const news = await generateAiStudents(3);
+                    setStudents([...news, ...students]);
+                    setFeedback({ type: 'success', message: 'Estudiantes generados' });
+                } catch (e) {
+                    setFeedback({ type: 'error', message: 'Error con la IA' });
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+
+            const handleExport = () => {
+                const blob = new Blob([JSON.stringify(students, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'estudiantes.json';
+                a.click();
+            };
+
+            return (
+                <div className="min-h-screen pb-32">
+                    <nav className="sticky top-0 z-50 bg-white border-b p-4 flex justify-between items-center shadow-sm">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-indigo-600 p-2 rounded-lg text-white"><Users size={20} /></div>
+                            <h1 className="font-bold text-xl">Gestor <span className="text-indigo-600">Alumnos</span></h1>
+                        </div>
+                        <button onClick={() => window.print()} className="no-print border px-4 py-2 rounded-xl flex gap-2 items-center hover:bg-gray-50">
+                            <Printer size={18} /> Imprimir
+                        </button>
+                    </nav>
+
+                    <main className="max-w-4xl mx-auto p-6">
+                        {feedback && (
+                            <div className={`mb-4 p-4 rounded-xl border ${feedback.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                                {feedback.message}
+                            </div>
+                        )}
+
+                        <div className="no-print bg-white p-4 rounded-2xl shadow-sm border mb-6 flex gap-4">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-3 text-gray-400" size={18} />
+                                <input 
+                                    className="w-full pl-10 pr-4 py-2 bg-gray-50 border rounded-xl"
+                                    placeholder="Buscar..."
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                            <button onClick={handleAddStudent} className="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-indigo-700 transition-all flex gap-2 items-center">
+                                <Plus size={18}/> Nuevo
+                            </button>
+                            <button onClick={handleAiGenerate} disabled={isLoading} className="bg-purple-600 text-white px-6 py-2 rounded-xl font-bold flex gap-2 items-center">
+                                <Sparkles size={18} className={isLoading ? 'animate-spin' : ''}/> {isLoading ? 'Cargando...' : 'IA'}
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            {students.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase())).map(student => (
+                                <div key={student.id} className="bg-white p-6 rounded-2xl border shadow-sm hover:shadow-md transition-shadow">
+                                    <div className="flex gap-6">
+                                        <div className="w-24 h-24 bg-gray-100 rounded-xl flex items-center justify-center overflow-hidden border">
+                                            {student.photo ? <img src={student.photo} className="w-full h-full object-cover" /> : <User className="text-gray-300" size={40} />}
+                                        </div>
+                                        <div className="flex-1">
+                                            <input 
+                                                className="text-xl font-bold w-full mb-2 outline-none border-b border-transparent focus:border-indigo-300"
+                                                value={student.name}
+                                                placeholder="Nombre del alumno"
+                                                onChange={(e) => handleUpdate(student.id, 'name', e.target.value)}
+                                            />
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="flex items-center gap-2 text-gray-600">
+                                                    <Mail size={14}/>
+                                                    <input className="text-sm w-full" value={student.email} placeholder="Email" onChange={(e) => handleUpdate(student.id, 'email', e.target.value)} />
+                                                </div>
+                                                <div className="flex items-center gap-2 text-gray-600">
+                                                    <BookOpen size={14}/>
+                                                    <select className="text-sm bg-transparent" value={student.course} onChange={(e) => handleUpdate(student.id, 'course', e.target.value)}>
+                                                        {COURSE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button onClick={() => setStudents(students.filter(s => s.id !== student.id))} className="text-gray-300 hover:text-red-500 self-start p-2">
+                                            <Trash2 size={20} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </main>
+
+                    <footer className="no-print fixed bottom-6 left-1/2 -translate-x-1/2 bg-white border shadow-2xl rounded-3xl p-4 flex gap-8 items-center px-8">
+                        <button onClick={handleExport} className="flex flex-col items-center gap-1 text-gray-500 hover:text-indigo-600">
+                            <Download size={20} /> <span className="text-[10px] font-bold uppercase">Exportar</span>
+                        </button>
+                        <div className="w-px h-8 bg-gray-100"></div>
+                        <div className="text-center">
+                            <div className="text-xl font-bold">{students.length}</div>
+                            <div className="text-[10px] text-gray-400 font-bold uppercase">Total Alumnos</div>
+                        </div>
+                    </footer>
+                </div>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
 </body>
 </html>
