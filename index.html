@@ -1,33 +1,23 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gestor de Alumnos JSON Pro</title>
+  <title>Gestor de Estudiantes JSON Pro</title>
+  
   <script src="https://cdn.tailwindcss.com"></script>
+  
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
   <style>
     body {
       font-family: 'Inter', sans-serif;
       background-color: #f8fafc;
       margin: 0;
-    }
-
-    /* Estilos para el mensaje de error de carga local */
-    #local-error {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: #fff;
-      z-index: 9999;
-      padding: 2rem;
-      text-align: center;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
     }
 
     @media print {
@@ -41,44 +31,23 @@
   </style>
   
   <script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@19.0.0",
-    "react-dom": "https://esm.sh/react-dom@19.0.0",
-    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
-    "@google/genai": "https://esm.sh/@google/genai@1.40.0",
-    "lucide-react": "https://esm.sh/lucide-react@0.463.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "react/": "https://esm.sh/react@^19.2.4/"
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.2.0",
+      "react-dom": "https://esm.sh/react-dom@18.2.0",
+      "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+      "@google/genai": "https://esm.sh/@google/genai@1.0.2",
+      "lucide-react": "https://esm.sh/lucide-react@0.284.0"
+    }
   }
-}
-</script>
+  </script>
 </head>
 <body>
-  <!-- Mensaje de ayuda si se abre sin servidor -->
-  <div id="local-error">
-    <div style="max-width: 500px; padding: 2rem; border: 1px solid #e2e8f0; border-radius: 1rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);">
-      <h2 style="color: #e11d48; font-weight: bold; font-size: 1.5rem; margin-bottom: 1rem;">⚠️ No se puede cargar localmente</h2>
-      <p style="color: #475569; margin-bottom: 1rem;">Los navegadores bloquean esta aplicación por seguridad cuando se abre directamente desde una carpeta.</p>
-      <div style="background: #f1f5f9; padding: 1rem; border-radius: 0.5rem; text-align: left; font-size: 0.875rem;">
-        <strong>Para que funcione:</strong>
-        <ol style="margin-top: 0.5rem; padding-left: 1.25rem;">
-          <li>Sube los archivos a tu <strong>servidor/hosting</strong>.</li>
-          <li>O usa una extensión como <strong>"Live Server"</strong> en VS Code.</li>
-        </ol>
-      </div>
-    </div>
-  </div>
-
   <div id="root"></div>
 
-  <script>
-    // Detectar si se está abriendo vía file://
-    if (window.location.protocol === 'file:') {
-      document.getElementById('local-error').style.display = 'flex';
-    }
-  </script>
-
-  <script type="module" src="./index.tsx"></script>
+  <script type="text/babel" data-type="module" src="./types.ts"></script>
+  <script type="text/babel" data-type="module" src="./geminiService.ts"></script>
+  <script type="text/babel" data-type="module" src="./App.tsx"></script>
+  <script type="text/babel" data-type="module" src="./index.tsx"></script>
 </body>
 </html>
