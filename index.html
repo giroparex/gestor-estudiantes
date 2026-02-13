@@ -3,22 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestor de Estudiantes IA</title>
-    
+    <title>Gestor de Estudiantes Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
     <script type="module">
-        import { GoogleGenAI } from "https://esm.sh/@google/genai@1.0.2";
+        import { GoogleGenAI } from "https://esm.run/@google/genai";
         window.GoogleGenAI = GoogleGenAI;
     </script>
 
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-        .card { background: white; border-radius: 1rem; border: 1px solid #e2e8f0; padding: 1.5rem; transition: all 0.2s; }
-        .card:hover { border-color: #6366f1; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .student-card { transition: all 0.3s ease; }
+        .student-card:hover { transform: translateY(-2px); box-shadow: 0 10px 20px -5px rgba(0,0,0,0.1); }
         @media print { .no-print { display: none !important; } }
     </style>
 </head>
@@ -26,9 +24,8 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useRef } = React;
 
-        // --- CONFIGURACIÓN Y SERVICIO ---
         const API_KEY = "AIzaSyCNZCUPHQ6NmoYZ9BBqJOJvYy98SFTOuMw";
         const COURSE_OPTIONS = ["LUNES A VIERNES", "V, S Y D", "INTENSIVO 1", "INTENSIVO 2"];
 
@@ -36,132 +33,141 @@
             const [students, setStudents] = useState([]);
             const [loading, setLoading] = useState(false);
             const [search, setSearch] = useState("");
+            const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
 
-            const addStudent = () => {
-                const newStudent = {
-                    id: Date.now().toString(),
-                    name: "", age: 20, email: "", course: "LUNES A VIERNES"
+            // --- FUNCIONES DE FOTO ---
+            const handlePhotoUpload = (id, file) => {
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    updateStudent(id, 'photo', reader.result);
                 };
-                setStudents([newStudent, ...students]);
+                reader.readAsDataURL(file);
+            };
+
+            // --- GESTIÓN DE DATOS ---
+            const addStudent = () => {
+                const newS = { id: crypto.randomUUID(), name: "", email: "", course: "LUNES A VIERNES", age: 20, photo: null };
+                setStudents([newS, ...students]);
             };
 
             const updateStudent = (id, field, value) => {
-                setStudents(students.map(s => s.id === id ? {...s, [field]: value} : s));
+                setStudents(prev => prev.map(s => s.id === id ? {...s, [field]: value} : s));
             };
 
             const deleteStudent = (id) => {
-                setStudents(students.filter(s => s.id !== id));
+                if(confirm("¿Eliminar este alumno?")) setStudents(students.filter(s => s.id !== id));
             };
 
-            const generateWithIA = async () => {
-                if (!window.GoogleGenAI) return alert("Cargando IA, intenta de nuevo...");
+            // --- IA ---
+            const generateIA = async () => {
+                if (!window.GoogleGenAI) return alert("Cargando motor de IA... espera un segundo.");
                 setLoading(true);
                 try {
                     const genAI = new window.GoogleGenAI(API_KEY);
                     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+                    const prompt = `Genera un JSON con 3 alumnos. Campos: name, age, email, course (elige de: ${COURSE_OPTIONS.join(", ")}). Responde solo el JSON.`;
                     
-                    const prompt = `Genera 3 estudiantes JSON con estos campos: id, name, age, email, course. Los cursos deben ser uno de: ${COURSE_OPTIONS.join(", ")}. Solo devuelve el JSON puro.`;
                     const result = await model.generateContent(prompt);
-                    const text = await result.response.text();
-                    const cleanJson = JSON.parse(text.replace(/```json|```/g, ""));
-                    
-                    setStudents([...cleanJson, ...students]);
+                    const text = result.response.text().replace(/```json|```/g, "");
+                    const parsed = JSON.parse(text).map(s => ({ ...s, id: crypto.randomUUID(), photo: null }));
+                    setStudents([...parsed, ...students]);
                 } catch (e) {
-                    console.error(e);
-                    alert("Error con la IA: Revisa tu conexión");
-                } finally {
-                    setLoading(false);
-                }
+                    alert("Error en la IA. Verifica tu API Key.");
+                } finally { setLoading(false); }
             };
 
-            const exportData = () => {
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(students));
-                const downloadAnchorNode = document.createElement('a');
-                downloadAnchorNode.setAttribute("href", dataStr);
-                downloadAnchorNode.setAttribute("download", "estudiantes.json");
-                downloadAnchorNode.click();
-            };
+            // --- ORGANIZACIÓN (SORT) ---
+            const sortedStudents = [...students].sort((a, b) => {
+                if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
+                if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
 
             return (
-                <div className="max-w-4xl mx-auto p-4 md:p-8">
-                    {/* Header */}
+                <div className="max-w-5xl mx-auto p-4 md:p-10">
                     <header className="flex justify-between items-center mb-8 no-print">
-                        <h1 className="text-2xl font-bold text-indigo-600 flex items-center gap-2">
-                             Gestor de Alumnos
-                        </h1>
+                        <div className="flex items-center gap-3">
+                            <div className="bg-indigo-600 p-2 rounded-xl text-white">👤</div>
+                            <h1 className="text-2xl font-black text-slate-800 tracking-tight">STUDENT<span className="text-indigo-600">MANAGER</span></h1>
+                        </div>
                         <div className="flex gap-2">
-                            <button onClick={() => window.print()} className="p-2 border rounded-lg hover:bg-gray-50 text-gray-600">Imprimir</button>
+                            <button onClick={() => window.print()} className="px-4 py-2 border rounded-xl hover:bg-white transition shadow-sm">Imprimir</button>
                         </div>
                     </header>
 
-                    {/* Toolbar */}
-                    <div className="no-print bg-white p-4 rounded-2xl shadow-sm mb-6 flex flex-wrap gap-3">
+                    <div className="no-print bg-white p-4 rounded-3xl shadow-sm border mb-6 flex flex-wrap gap-4 items-center">
                         <input 
-                            className="flex-1 min-w-[200px] border p-2 rounded-xl bg-gray-50 outline-none focus:ring-2 ring-indigo-100" 
-                            placeholder="Buscar alumno..."
+                            className="flex-1 min-w-[200px] bg-slate-50 border-none p-3 rounded-2xl outline-none ring-indigo-500 focus:ring-2" 
+                            placeholder="Buscar alumnos..." 
                             onChange={(e) => setSearch(e.target.value)}
                         />
-                        <button onClick={addStudent} className="bg-indigo-600 text-white px-5 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
-                            + Nuevo
+                        <select 
+                            className="bg-slate-50 p-3 rounded-2xl text-sm font-bold text-slate-600 outline-none"
+                            onChange={(e) => setSortConfig({ ...sortConfig, key: e.target.value })}
+                        >
+                            <option value="name">Ordenar por Nombre</option>
+                            <option value="course">Ordenar por Curso</option>
+                            <option value="age">Ordenar por Edad</option>
+                        </select>
+                        <button onClick={() => setSortConfig({ ...sortConfig, direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-3 bg-slate-50 rounded-2xl">
+                            {sortConfig.direction === 'asc' ? "↑" : "↓"}
                         </button>
-                        <button onClick={generateWithIA} disabled={loading} className="bg-purple-600 text-white px-5 py-2 rounded-xl font-semibold hover:bg-purple-700 disabled:opacity-50 transition">
-                            {loading ? "Generando..." : "Mágia IA"}
-                        </button>
-                        <button onClick={exportData} className="bg-emerald-600 text-white px-5 py-2 rounded-xl font-semibold hover:bg-emerald-700">
-                            Descargar
-                        </button>
+                        <div className="flex gap-2 ml-auto">
+                            <button onClick={addStudent} className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold hover:bg-slate-800 transition">+ Nuevo</button>
+                            <button onClick={generateIA} disabled={loading} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold hover:bg-indigo-700 flex gap-2 items-center">
+                                {loading ? "..." : "IA ✨"}
+                            </button>
+                        </div>
                     </div>
 
-                    {/* Listado */}
                     <div className="grid gap-4">
-                        {students.filter(s => s.name.toLowerCase().includes(search.toLowerCase())).map(student => (
-                            <div key={student.id} className="card flex flex-col md:flex-row gap-4 items-start">
-                                <div className="bg-indigo-50 w-16 h-16 rounded-full flex items-center justify-center text-indigo-400">
-                                    👤
+                        {sortedStudents.filter(s => s.name.toLowerCase().includes(search.toLowerCase())).map(s => (
+                            <div key={s.id} className="student-card bg-white p-5 rounded-3xl border border-slate-100 flex flex-col md:flex-row gap-6 items-center">
+                                
+                                {/* SECCIÓN FOTO */}
+                                <div className="relative group">
+                                    <div className="w-20 h-20 bg-slate-100 rounded-2xl overflow-hidden border-2 border-dashed border-slate-200 flex items-center justify-center">
+                                        {s.photo ? (
+                                            <img src={s.photo} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <span className="text-slate-300 text-2xl">📸</span>
+                                        )}
+                                    </div>
+                                    <input 
+                                        type="file" 
+                                        accept="image/*" 
+                                        className="absolute inset-0 opacity-0 cursor-pointer" 
+                                        onChange={(e) => handlePhotoUpload(s.id, e.target.files[0])}
+                                    />
                                 </div>
-                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
-                                    <input 
-                                        className="font-bold text-lg outline-none border-b border-transparent focus:border-indigo-300 w-full"
-                                        value={student.name}
-                                        placeholder="Nombre del estudiante"
-                                        onChange={(e) => updateStudent(student.id, 'name', e.target.value)}
-                                    />
-                                    <input 
-                                        className="text-gray-500 outline-none border-b border-transparent focus:border-indigo-300 w-full"
-                                        value={student.email}
-                                        placeholder="correo@ejemplo.com"
-                                        onChange={(e) => updateStudent(student.id, 'email', e.target.value)}
-                                    />
-                                    <div className="flex gap-2 items-center">
-                                        <span className="text-xs font-bold text-gray-400">CURSO:</span>
-                                        <select 
-                                            className="text-sm bg-transparent outline-none text-indigo-600 font-semibold"
-                                            value={student.course}
-                                            onChange={(e) => updateStudent(student.id, 'course', e.target.value)}
-                                        >
+
+                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+                                    <div className="flex flex-col">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Nombre</label>
+                                        <input className="font-bold text-slate-700 outline-none border-b border-transparent focus:border-indigo-400" value={s.name} onChange={(e) => updateStudent(s.id, 'name', e.target.value)} />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Email</label>
+                                        <input className="text-slate-500 text-sm outline-none" value={s.email} onChange={(e) => updateStudent(s.id, 'email', e.target.value)} />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Curso</label>
+                                        <select className="text-sm font-bold text-indigo-600 bg-transparent outline-none" value={s.course} onChange={(e) => updateStudent(s.id, 'course', e.target.value)}>
                                             {COURSE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
                                         </select>
                                     </div>
-                                    <div className="flex gap-2 items-center">
-                                        <span className="text-xs font-bold text-gray-400">EDAD:</span>
-                                        <input 
-                                            type="number" 
-                                            className="w-12 outline-none" 
-                                            value={student.age} 
-                                            onChange={(e) => updateStudent(student.id, 'age', e.target.value)}
-                                        />
+                                    <div className="flex flex-col">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-1">Edad</label>
+                                        <input type="number" className="font-bold text-slate-700 outline-none" value={s.age} onChange={(e) => updateStudent(s.id, 'age', e.target.value)} />
                                     </div>
                                 </div>
-                                <button onClick={() => deleteStudent(student.id)} className="text-red-300 hover:text-red-500 transition no-print">
-                                    Eliminar
+
+                                <button onClick={() => deleteStudent(s.id)} className="text-slate-300 hover:text-red-500 transition no-print px-2">
+                                    ✕
                                 </button>
                             </div>
                         ))}
-                        {students.length === 0 && (
-                            <div className="text-center py-20 text-gray-400 italic">
-                                No hay alumnos. Usa "Nuevo" o "Mágia IA" para empezar.
-                            </div>
-                        )}
                     </div>
                 </div>
             );
