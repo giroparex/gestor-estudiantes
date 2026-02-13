@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestor de Estudiantes Pro</title>
+    <title>Gestor Alumnos - Auto-Guardado GitHub</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -12,186 +12,133 @@
         import { GoogleGenAI } from "https://esm.run/@google/genai";
         window.GoogleGenAI = GoogleGenAI;
     </script>
-
-    <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-        .student-card { transition: all 0.3s ease; }
-        .student-card:hover { transform: translateY(-3px); box-shadow: 0 12px 25px -5px rgba(0,0,0,0.1); }
-        @media print { .no-print { display: none !important; } }
-    </style>
 </head>
-<body>
+<body class="bg-slate-50">
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        const API_KEY = "AIzaSyCNZCUPHQ6NmoYZ9BBqJOJvYy98SFTOuMw";
+        // --- CONFIGURACIÓN ---
+        const API_KEY_GEMINI = "AIzaSyCNZCUPHQ6NmoYZ9BBqJOJvYy98SFTOuMw";
+        const GITHUB_REPO = "giroparex/gestor-estudiantes"; // TU REPO
+        const FILE_PATH = "alumnos.json"; // NOMBRE DEL ARCHIVO EN GITHUB
         const COURSE_OPTIONS = ["LUNES A VIERNES", "V, S Y D", "INTENSIVO 1", "INTENSIVO 2"];
 
         const App = () => {
             const [students, setStudents] = useState([]);
             const [loading, setLoading] = useState(false);
-            const [search, setSearch] = useState("");
-            const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
+            const [ghToken, setGhToken] = useState(localStorage.getItem('gh_token') || "");
+            const [isSaving, setIsSaving] = useState(false);
 
-            // --- GESTIÓN DE ARCHIVOS ---
-            const handlePhoto = (id, file) => {
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onloadend = () => updateStudent(id, 'photo', reader.result);
-                reader.readAsDataURL(file);
+            // 1. CARGAR DATOS DESDE GITHUB AL ABRIR
+            useEffect(() => {
+                fetch(`https://raw.githubusercontent.com/${GITHUB_REPO}/main/${FILE_PATH}?t=${Date.now()}`)
+                    .then(res => res.json())
+                    .then(data => setStudents(data))
+                    .catch(err => console.log("No se encontró archivo previo en GitHub"));
+            }, []);
+
+            // 2. FUNCIÓN PARA GUARDAR EN GITHUB
+            const saveToGitHub = async () => {
+                if (!ghToken) return alert("Por favor, introduce tu Token de GitHub en la configuración");
+                setIsSaving(true);
+                
+                try {
+                    // Obtener el SHA del archivo actual (necesario para actualizar en GitHub)
+                    const resFile = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${FILE_PATH}`, {
+                        headers: { Authorization: `token ${ghToken}` }
+                    });
+                    const fileData = await resFile.json();
+                    const sha = fileData.sha;
+
+                    // Subir nueva versión
+                    const content = btoa(unescape(encodeURIComponent(JSON.stringify(students, null, 2))));
+                    const resUpdate = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${FILE_PATH}`, {
+                        method: 'PUT',
+                        headers: { 
+                            Authorization: `token ${ghToken}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            message: "Actualización de alumnos vía App",
+                            content: content,
+                            sha: sha
+                        })
+                    });
+
+                    if (resUpdate.ok) alert("¡Guardado en GitHub con éxito!");
+                    else alert("Error al guardar. Revisa el Token.");
+                } catch (e) {
+                    alert("Error de conexión con GitHub");
+                } finally { setIsSaving(false); }
             };
 
-            const importJson = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    try {
-                        const data = JSON.parse(event.target.result);
-                        setStudents(Array.isArray(data) ? data : [data]);
-                    } catch (err) { alert("Archivo JSON no válido"); }
-                };
-                reader.readAsText(file);
-            };
-
-            const exportJson = () => {
-                const blob = new Blob([JSON.stringify(students, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `estudiantes_${new Date().toLocaleDateString()}.json`;
-                a.click();
-            };
-
-            // --- ACCIONES ---
             const addStudent = () => {
                 const newS = { id: crypto.randomUUID(), name: "", email: "", phone1: "", phone2: "", course: "LUNES A VIERNES", age: 20, photo: null };
                 setStudents([newS, ...students]);
             };
 
-            const updateStudent = (id, field, value) => {
-                setStudents(prev => prev.map(s => s.id === id ? {...s, [field]: value} : s));
-            };
-
-            const generateIA = async () => {
-                if (!window.GoogleGenAI) return alert("Cargando IA...");
-                setLoading(true);
-                try {
-                    const genAI = new window.GoogleGenAI(API_KEY);
-                    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-                    const prompt = `Genera un JSON con 3 alumnos. Campos: name, age, email, phone1, phone2, course (elige de: ${COURSE_OPTIONS.join(", ")}). Los teléfonos deben ser diferentes. Responde solo JSON.`;
-                    const result = await model.generateContent(prompt);
-                    const text = result.response.text().replace(/```json|```/g, "");
-                    const parsed = JSON.parse(text).map(s => ({ ...s, id: crypto.randomUUID(), photo: null }));
-                    setStudents([...parsed, ...students]);
-                } catch (e) { alert("Error de IA. Revisa tu clave."); }
-                finally { setLoading(false); }
-            };
-
-            // --- LOGICA DE FILTRO Y ORDEN ---
-            const filteredAndSorted = [...students]
-                .filter(s => s.name.toLowerCase().includes(search.toLowerCase()))
-                .sort((a, b) => {
-                    if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
-                    if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
-                    return 0;
-                });
-
             return (
-                <div className="max-w-6xl mx-auto p-4 md:p-8">
-                    <header className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4 no-print">
-                        <div className="flex items-center gap-3">
-                            <div className="bg-indigo-600 p-2.5 rounded-2xl text-white shadow-lg shadow-indigo-200">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                            </div>
-                            <h1 className="text-2xl font-black text-slate-800 tracking-tighter italic">ALUMNOS<span className="text-indigo-600">PRO</span></h1>
-                        </div>
+                <div className="max-w-5xl mx-auto p-6">
+                    <header className="flex justify-between items-center mb-8 bg-white p-6 rounded-3xl shadow-sm">
+                        <h1 class="font-black text-xl text-indigo-600">SISTEMA GITHUB CLOUD</h1>
                         <div className="flex gap-2">
-                            <label className="cursor-pointer bg-white border px-4 py-2 rounded-xl hover:bg-slate-50 font-bold text-sm flex items-center gap-2 shadow-sm">
-                                📥 Importar <input type="file" accept=".json" className="hidden" onChange={importJson} />
-                            </label>
-                            <button onClick={exportJson} className="bg-white border px-4 py-2 rounded-xl hover:bg-slate-50 font-bold text-sm shadow-sm">📤 Exportar</button>
-                            <button onClick={() => window.print()} className="bg-slate-800 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-lg shadow-slate-200">🖨️ Reporte</button>
+                            <input 
+                                type="password" 
+                                placeholder="Pega aquí tu Token de GitHub"
+                                className="border p-2 rounded-xl text-xs w-40"
+                                value={ghToken}
+                                onChange={(e) => {
+                                    setGhToken(e.target.value);
+                                    localStorage.setItem('gh_token', e.target.value);
+                                }}
+                            />
+                            <button 
+                                onClick={saveToGitHub}
+                                disabled={isSaving}
+                                className="bg-emerald-500 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-emerald-600"
+                            >
+                                {isSaving ? "Guardando..." : "☁️ Sincronizar GitHub"}
+                            </button>
                         </div>
                     </header>
 
-                    <div className="no-print bg-white p-4 rounded-[2rem] shadow-sm border border-slate-100 mb-8 flex flex-wrap gap-4 items-center">
-                        <input 
-                            className="flex-1 min-w-[200px] bg-slate-50 border-none p-3.5 rounded-2xl outline-none ring-indigo-500/20 focus:ring-4 transition-all" 
-                            placeholder="Buscar por nombre..." 
-                            onChange={(e) => setSearch(e.target.value)}
-                        />
-                        <select 
-                            className="bg-slate-50 p-3.5 rounded-2xl text-sm font-bold text-slate-600 outline-none border-none cursor-pointer hover:bg-slate-100"
-                            onChange={(e) => setSortConfig({ ...sortConfig, key: e.target.value })}
-                        >
-                            <option value="name">Ordenar por Nombre</option>
-                            <option value="course">Ordenar por Curso</option>
-                            <option value="age">Ordenar por Edad</option>
-                        </select>
-                        <button onClick={() => setSortConfig({ ...sortConfig, direction: sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="p-3.5 bg-slate-50 rounded-2xl font-bold hover:bg-slate-100">
-                            {sortConfig.direction === 'asc' ? "↑" : "↓"}
-                        </button>
-                        <div className="flex gap-2 ml-auto w-full md:w-auto">
-                            <button onClick={addStudent} className="flex-1 bg-indigo-600 text-white px-8 py-3.5 rounded-2xl font-black hover:bg-indigo-700 transition shadow-lg shadow-indigo-100">+ NUEVO ALUMNO</button>
-                            <button onClick={generateIA} disabled={loading} className="bg-purple-600 text-white px-6 py-3.5 rounded-2xl font-black hover:bg-purple-700 flex gap-2 items-center shadow-lg shadow-purple-100 disabled:opacity-50">
-                                {loading ? "..." : "IA ✨"}
-                            </button>
-                        </div>
+                    <div className="mb-6 flex gap-4">
+                        <button onClick={addStudent} className="bg-indigo-600 text-white px-6 py-3 rounded-2xl font-bold">+ Nuevo Alumno</button>
                     </div>
 
-                    <div className="grid gap-5">
-                        {filteredAndSorted.map(s => (
-                            <div key={s.id} className="student-card bg-white p-6 rounded-[2.5rem] border border-slate-100 flex flex-col lg:flex-row gap-6 items-center">
-                                
-                                {/* FOTO */}
-                                <div className="relative group shrink-0">
-                                    <div className="w-24 h-24 bg-slate-50 rounded-[2rem] overflow-hidden border-2 border-dashed border-slate-200 flex items-center justify-center group-hover:border-indigo-400 transition-colors">
-                                        {s.photo ? (
-                                            <img src={s.photo} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <span className="text-3xl">👤</span>
-                                        )}
-                                    </div>
-                                    <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => handlePhoto(s.id, e.target.files[0])} />
-                                    <div className="absolute -bottom-1 -right-1 bg-white shadow-md rounded-full p-1.5 border no-print">📸</div>
+                    <div className="grid gap-4">
+                        {students.map(s => (
+                            <div key={s.id} className="bg-white p-6 rounded-[2rem] border flex gap-6 items-center shadow-sm">
+                                <div className="flex-1 grid grid-cols-2 gap-4">
+                                    <input 
+                                        className="font-bold border-b outline-none focus:border-indigo-500" 
+                                        value={s.name} 
+                                        placeholder="Nombre"
+                                        onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, name: e.target.value} : st))}
+                                    />
+                                    <input 
+                                        className="text-slate-500 border-b outline-none" 
+                                        value={s.phone1} 
+                                        placeholder="Teléfono 1"
+                                        onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, phone1: e.target.value} : st))}
+                                    />
+                                    <input 
+                                        className="text-slate-500 border-b outline-none" 
+                                        value={s.phone2} 
+                                        placeholder="Teléfono 2"
+                                        onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, phone2: e.target.value} : st))}
+                                    />
+                                    <select 
+                                        className="text-indigo-600 font-bold bg-transparent"
+                                        value={s.course}
+                                        onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, course: e.target.value} : st))}
+                                    >
+                                        {COURSE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
                                 </div>
-
-                                {/* CAMPOS */}
-                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4 w-full">
-                                    <div className="flex flex-col">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Nombre Completo</label>
-                                        <input className="font-bold text-slate-800 text-lg outline-none border-b-2 border-transparent focus:border-indigo-400 transition-colors" value={s.name} placeholder="Escribir nombre..." onChange={(e) => updateStudent(s.id, 'name', e.target.value)} />
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Correo Electrónico</label>
-                                        <input className="text-slate-500 font-medium outline-none" value={s.email} placeholder="ejemplo@correo.com" onChange={(e) => updateStudent(s.id, 'email', e.target.value)} />
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Curso Asignado</label>
-                                        <select className="font-bold text-indigo-600 bg-transparent outline-none cursor-pointer" value={s.course} onChange={(e) => updateStudent(s.id, 'course', e.target.value)}>
-                                            {COURSE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Teléfono Principal</label>
-                                        <input className="font-bold text-slate-700 outline-none" value={s.phone1} placeholder="+00 000 000 000" onChange={(e) => updateStudent(s.id, 'phone1', e.target.value)} />
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Teléfono Secundario</label>
-                                        <input className="font-bold text-slate-700 outline-none" value={s.phone2} placeholder="Opcional..." onChange={(e) => updateStudent(s.id, 'phone2', e.target.value)} />
-                                    </div>
-                                    <div className="flex flex-col w-20">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Edad</label>
-                                        <input type="number" className="font-bold text-slate-800 outline-none" value={s.age} onChange={(e) => updateStudent(s.id, 'age', e.target.value)} />
-                                    </div>
-                                </div>
-
-                                <button onClick={() => setStudents(students.filter(st => st.id !== s.id))} className="text-slate-200 hover:text-red-500 transition no-print p-4">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                                </button>
+                                <button onClick={() => setStudents(students.filter(st => st.id !== s.id))} className="text-red-400">✕</button>
                             </div>
                         ))}
                     </div>
