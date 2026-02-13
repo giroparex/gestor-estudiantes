@@ -9,30 +9,26 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <script type="importmap">
-    {
-        "imports": {
-            "@google/genai": "https://esm.run/@google/genai@0.2.1"
-        }
-    }
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script type="module">
+        import { GoogleGenAI } from "https://esm.sh/@google/genai@1.0.2";
+        window.GoogleGenAI = GoogleGenAI;
     </script>
 
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; margin: 0; }
-        .card { background: white; border-radius: 1rem; border: 1px solid #e2e8f0; padding: 1.5rem; margin-bottom: 1rem; }
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .card { background: white; border-radius: 1rem; border: 1px solid #e2e8f0; padding: 1.5rem; transition: all 0.2s; }
+        .card:hover { border-color: #6366f1; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
         @media print { .no-print { display: none !important; } }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
-    <script type="text/babel" data-type="module">
-        import { GoogleGenAI } from "@google/genai";
+    <script type="text/babel">
+        const { useState, useEffect } = React;
 
-        const { useState } = React;
-
-        // --- CONFIGURACIÓN ---
+        // --- CONFIGURACIÓN Y SERVICIO ---
         const API_KEY = "AIzaSyCNZCUPHQ6NmoYZ9BBqJOJvYy98SFTOuMw";
         const COURSE_OPTIONS = ["LUNES A VIERNES", "V, S Y D", "INTENSIVO 1", "INTENSIVO 2"];
 
@@ -42,108 +38,130 @@
             const [search, setSearch] = useState("");
 
             const addStudent = () => {
-                const newS = { id: Date.now().toString(), name: "", email: "", course: "LUNES A VIERNES", age: 20 };
-                setStudents([newS, ...students]);
+                const newStudent = {
+                    id: Date.now().toString(),
+                    name: "", age: 20, email: "", course: "LUNES A VIERNES"
+                };
+                setStudents([newStudent, ...students]);
+            };
+
+            const updateStudent = (id, field, value) => {
+                setStudents(students.map(s => s.id === id ? {...s, [field]: value} : s));
+            };
+
+            const deleteStudent = (id) => {
+                setStudents(students.filter(s => s.id !== id));
             };
 
             const generateWithIA = async () => {
+                if (!window.GoogleGenAI) return alert("Cargando IA, intenta de nuevo...");
                 setLoading(true);
                 try {
-                    const genAI = new GoogleGenAI(API_KEY);
+                    const genAI = new window.GoogleGenAI(API_KEY);
                     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
                     
-                    const prompt = `Genera un JSON con 3 estudiantes aleatorios. Usa estos campos: name, age, email, course. Los cursos DEBEN ser de esta lista: ${COURSE_OPTIONS.join(", ")}. Devuelve SOLO el array JSON.`;
-                    
+                    const prompt = `Genera 3 estudiantes JSON con estos campos: id, name, age, email, course. Los cursos deben ser uno de: ${COURSE_OPTIONS.join(", ")}. Solo devuelve el JSON puro.`;
                     const result = await model.generateContent(prompt);
-                    const response = await result.response;
-                    const text = response.text();
+                    const text = await result.response.text();
+                    const cleanJson = JSON.parse(text.replace(/```json|```/g, ""));
                     
-                    // Limpieza de posibles marcas de markdown de la IA
-                    const cleanText = text.replace(/```json/g, "").replace(/```/g, "").trim();
-                    const newStudents = JSON.parse(cleanText).map(s => ({...s, id: Math.random().toString(36).substr(2, 9)}));
-                    
-                    setStudents([...newStudents, ...students]);
+                    setStudents([...cleanJson, ...students]);
                 } catch (e) {
-                    console.error("Error IA:", e);
-                    alert("Error al conectar con la IA. Revisa tu clave o conexión.");
+                    console.error(e);
+                    alert("Error con la IA: Revisa tu conexión");
                 } finally {
                     setLoading(false);
                 }
             };
 
             const exportData = () => {
-                const blob = new Blob([JSON.stringify(students, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = 'alumnos.json';
-                link.click();
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(students));
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute("href", dataStr);
+                downloadAnchorNode.setAttribute("download", "estudiantes.json");
+                downloadAnchorNode.click();
             };
 
             return (
-                <div className="max-w-4xl mx-auto p-4 md:p-10">
-                    <header className="flex justify-between items-center mb-10 no-print">
-                        <h1 className="text-3xl font-black text-slate-800 tracking-tight">
-                            Gestor<span className="text-indigo-600">Alumnos</span>
+                <div className="max-w-4xl mx-auto p-4 md:p-8">
+                    {/* Header */}
+                    <header className="flex justify-between items-center mb-8 no-print">
+                        <h1 className="text-2xl font-bold text-indigo-600 flex items-center gap-2">
+                             Gestor de Alumnos
                         </h1>
-                        <button onClick={() => window.print()} className="bg-white border px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 transition">
-                            Imprimir Reporte
-                        </button>
+                        <div className="flex gap-2">
+                            <button onClick={() => window.print()} className="p-2 border rounded-lg hover:bg-gray-50 text-gray-600">Imprimir</button>
+                        </div>
                     </header>
 
-                    <div className="no-print bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-8 flex flex-wrap gap-4 items-center">
+                    {/* Toolbar */}
+                    <div className="no-print bg-white p-4 rounded-2xl shadow-sm mb-6 flex flex-wrap gap-3">
                         <input 
-                            className="flex-1 min-w-[250px] border-none bg-slate-50 p-3 rounded-xl focus:ring-2 ring-indigo-500 outline-none" 
-                            placeholder="Buscar por nombre..."
-                            value={search}
+                            className="flex-1 min-w-[200px] border p-2 rounded-xl bg-gray-50 outline-none focus:ring-2 ring-indigo-100" 
+                            placeholder="Buscar alumno..."
                             onChange={(e) => setSearch(e.target.value)}
                         />
-                        <div className="flex gap-2">
-                            <button onClick={addStudent} className="bg-slate-800 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-700 transition">
-                                + Nuevo
-                            </button>
-                            <button onClick={generateWithIA} disabled={loading} className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2">
-                                {loading ? "Procesando..." : "Mágia IA ✨"}
-                            </button>
-                            <button onClick={exportData} className="bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700">
-                                Exportar
-                            </button>
-                        </div>
+                        <button onClick={addStudent} className="bg-indigo-600 text-white px-5 py-2 rounded-xl font-semibold hover:bg-indigo-700 transition">
+                            + Nuevo
+                        </button>
+                        <button onClick={generateWithIA} disabled={loading} className="bg-purple-600 text-white px-5 py-2 rounded-xl font-semibold hover:bg-purple-700 disabled:opacity-50 transition">
+                            {loading ? "Generando..." : "Mágia IA"}
+                        </button>
+                        <button onClick={exportData} className="bg-emerald-600 text-white px-5 py-2 rounded-xl font-semibold hover:bg-emerald-700">
+                            Descargar
+                        </button>
                     </div>
 
-                    <div className="space-y-4">
-                        {students.filter(s => s.name.toLowerCase().includes(search.toLowerCase())).map(s => (
-                            <div key={s.id} className="card bg-white p-6 rounded-2xl border flex flex-col md:flex-row gap-6 items-center">
-                                <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center text-2xl">👤</div>
-                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                    {/* Listado */}
+                    <div className="grid gap-4">
+                        {students.filter(s => s.name.toLowerCase().includes(search.toLowerCase())).map(student => (
+                            <div key={student.id} className="card flex flex-col md:flex-row gap-4 items-start">
+                                <div className="bg-indigo-50 w-16 h-16 rounded-full flex items-center justify-center text-indigo-400">
+                                    👤
+                                </div>
+                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
                                     <input 
-                                        className="font-bold text-lg border-b border-transparent focus:border-indigo-500 outline-none"
-                                        value={s.name}
-                                        placeholder="Nombre del Alumno"
-                                        onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, name: e.target.value} : st))}
+                                        className="font-bold text-lg outline-none border-b border-transparent focus:border-indigo-300 w-full"
+                                        value={student.name}
+                                        placeholder="Nombre del estudiante"
+                                        onChange={(e) => updateStudent(student.id, 'name', e.target.value)}
                                     />
                                     <input 
-                                        className="text-slate-500 border-b border-transparent focus:border-indigo-500 outline-none"
-                                        value={s.email}
+                                        className="text-gray-500 outline-none border-b border-transparent focus:border-indigo-300 w-full"
+                                        value={student.email}
                                         placeholder="correo@ejemplo.com"
-                                        onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, email: e.target.value} : st))}
+                                        onChange={(e) => updateStudent(student.id, 'email', e.target.value)}
                                     />
-                                    <select 
-                                        className="text-sm font-semibold text-indigo-600 bg-slate-50 p-1 rounded"
-                                        value={s.course}
-                                        onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, course: e.target.value} : st))}
-                                    >
-                                        {COURSE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
-                                    <div className="flex items-center gap-2 text-slate-400 text-sm">
-                                        Edad: <input type="number" className="w-12 bg-transparent font-bold text-slate-700" value={s.age} onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, age: e.target.value} : st))}/>
+                                    <div className="flex gap-2 items-center">
+                                        <span className="text-xs font-bold text-gray-400">CURSO:</span>
+                                        <select 
+                                            className="text-sm bg-transparent outline-none text-indigo-600 font-semibold"
+                                            value={student.course}
+                                            onChange={(e) => updateStudent(student.id, 'course', e.target.value)}
+                                        >
+                                            {COURSE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="flex gap-2 items-center">
+                                        <span className="text-xs font-bold text-gray-400">EDAD:</span>
+                                        <input 
+                                            type="number" 
+                                            className="w-12 outline-none" 
+                                            value={student.age} 
+                                            onChange={(e) => updateStudent(student.id, 'age', e.target.value)}
+                                        />
                                     </div>
                                 </div>
-                                <button onClick={() => setStudents(students.filter(st => st.id !== s.id))} className="text-slate-300 hover:text-red-500 no-print">
-                                    Borrar
+                                <button onClick={() => deleteStudent(student.id)} className="text-red-300 hover:text-red-500 transition no-print">
+                                    Eliminar
                                 </button>
                             </div>
                         ))}
+                        {students.length === 0 && (
+                            <div className="text-center py-20 text-gray-400 italic">
+                                No hay alumnos. Usa "Nuevo" o "Mágia IA" para empezar.
+                            </div>
+                        )}
                     </div>
                 </div>
             );
