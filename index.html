@@ -12,7 +12,6 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    </script>
 
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
@@ -92,7 +91,7 @@
                 <header className="no-print bg-white p-4 rounded-3xl shadow-sm border mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
                     <div className="flex items-center gap-2">
                         <span className="material-icons-round text-indigo-400">people</span>
-                        <h1 class="text-3xl font-bold tracking-tight text-slate-800 dark:text-white">Alumnos</h1>
+                        <h1 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-white">Alumnos</h1>
                     </div>
                     <div className="flex gap-2">
                         <input 
@@ -116,7 +115,7 @@
                     <div className="flex items-center gap-2">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mostrar:</label>
                         <select 
-                            className="font-bold text-indigo-600 outline-none bg-slate-50 p-3 rounded-xl cursor-pointer"
+                            className="font-bold text-indigo-400 outline-none bg-slate-50 p-3 rounded-xl cursor-pointer"
                             value={filterCriteria}
                             onChange={(e) => setFilterCriteria(e.target.value)}
                         >
@@ -145,25 +144,35 @@
 
                             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 w-full">
                                 <div className="flex flex-col">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase mb-1">Nombre</label>
+                                    <label className="text-[12px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                                        <span className="material-icons-round text-[12px]">badge</span> Nombre
+                                    </label>
                                     <input className="font-bold text-slate-800 border-b outline-none focus:border-indigo-500" value={s.name} onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, name: e.target.value} : st))} />
                                 </div>
                                 <div className="flex flex-col">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase mb-1">Curso</label>
-                                    <select className="font-bold text-indigo-600 outline-none cursor-pointer" value={s.course} onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, course: e.target.value} : st))}>
+                                    <label className="text-[12px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                                        <span className="material-icons-round text-[12px]">school</span> Curso
+                                    </label>
+                                    <select className="font-bold text-indigo-400 outline-none cursor-pointer" value={s.course} onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, course: e.target.value} : st))}>
                                         {COURSE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
                                 </div>
                                 <div className="flex flex-col">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase mb-1">Teléfono 1</label>
+                                    <label className="text-[12px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                                        <span className="material-icons-round text-[12px]">phone</span> Teléfono 1
+                                    </label>
                                     <input className="text-slate-600 border-b outline-none focus:border-indigo-500" value={s.phone1} onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, phone1: e.target.value} : st))} />
                                 </div>
                                 <div className="flex flex-col">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase mb-1">Teléfono 2</label>
+                                    <label className="text-[12px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                                        <span className="material-icons-round text-[12px]">phone_iphone</span> Teléfono 2
+                                    </label>
                                     <input className="text-slate-600 border-b outline-none focus:border-indigo-500" value={s.phone2} placeholder="Opcional" onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, phone2: e.target.value} : st))} />
                                 </div>
                                 <div className="flex flex-col">
-                                    <label className="text-[9px] font-black text-slate-400 uppercase mb-1">Email</label>
+                                    <label className="text-[12px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                                        <span className="material-icons-round text-[12px]">alternate_email</span> Email
+                                    </label>
                                     <input className="text-sm text-slate-500 border-b outline-none focus:border-indigo-500" value={s.email} onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, email: e.target.value} : st))} />
                                 </div>
                             </div>
