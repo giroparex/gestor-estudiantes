@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor Alumnos Pro - Cloud Sync</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        .student-card { transition: all 0.3s ease; border: 1px solid #e2e8f0; }
+        .student-card:hover { transform: translateY(-3px); shadow: 0 10px 15px -3px rgba(0,0,0,0.1); border-color: #6366f1; }
+        @media print { .no-print { display: none !important; } }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const GITHUB_REPO = "giroparex/gestor-estudiantes"; 
+    const FILE_PATH = "alumnos.json";
+    const COURSE_OPTIONS = ["LUNES A VIERNES", "V, S Y D", "INTENSIVO 1", "INTENSIVO 2"];
+
+    const App = () => {
+        const [students, setStudents] = useState([]);
+        const [search, setSearch] = useState("");
+        const [ghToken, setGhToken] = useState(localStorage.getItem('gh_token_seguro') || "");
+        const [isSaving, setIsSaving] = useState(false);
+        const [filterCriteria, setFilterCriteria] = useState("all_name");
+
+        useEffect(() => {
+            const url = `https://raw.githubusercontent.com/${GITHUB_REPO}/main/${FILE_PATH}?t=${Date.now()}`;
+            fetch(url)
+                .then(res => res.json())
+                .then(data => { if (Array.isArray(data)) setStudents(data); })
+                .catch(err => console.log("Iniciando con lista vacía."));
+        }, []);
+
+        const saveToGitHub = async () => {
+            if (!ghToken) return alert("Introduce tu Token de GitHub.");
+            setIsSaving(true);
+            try {
+                const resFile = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${FILE_PATH}`, {
+                    headers: { Authorization: `token ${ghToken}` }
+                });
+                let sha = "";
+                if (resFile.ok) { const fileData = await resFile.json(); sha = fileData.sha; }
+                const content = btoa(unescape(encodeURIComponent(JSON.stringify(students, null, 2))));
+                const resUpdate = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${FILE_PATH}`, {
+                    method: 'PUT',
+                    headers: { Authorization: `token ${ghToken}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: "Sincronización manual", content, sha: sha || undefined })
+                });
+                if (resUpdate.ok) alert("✅ Guardado correctamente.");
+            } catch (e) { alert("❌ Error de conexión."); }
+            finally { setIsSaving(false); }
+        };
+
+        const addStudent = () => {
+            const newS = { 
+                id: crypto.randomUUID(), 
+                name: "", 
+                email: "", 
+                phone1: "", 
+                phone2: "", 
+                course: filterCriteria !== "all_name" ? filterCriteria : "LUNES A VIERNES", 
+                age: "", 
+                photo: null 
+            };
+            setStudents([newS, ...students]);
+        };
+
+        const processedStudents = [...students]
+            .filter(s => {
+                const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase());
+                return filterCriteria === "all_name" ? matchesSearch : (matchesSearch && s.course === filterCriteria);
+            })
+            .sort((a, b) => a.name.localeCompare(b.name));
+
+        return (
+            <div className="max-w-7xl mx-auto p-4 md:p-8">
+                <header className="no-print bg-white p-4 rounded-3xl shadow-sm border mb-8 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="flex items-center gap-2">
+                        <span className="material-icons-round text-indigo-400">people</span>
+                        <h1 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-white">Alumnos</h1>
+                    </div>
+                    <div className="flex gap-2">
+                        <input 
+                            type="password" placeholder="Token GitHub"
+                            className="border bg-slate-50 p-2 rounded-xl text-xs w-40 outline-none focus:ring-2 ring-indigo-500"
+                            value={ghToken}
+                            onChange={(e) => { setGhToken(e.target.value); localStorage.setItem('gh_token_seguro', e.target.value); }}
+                        />
+                        <button onClick={saveToGitHub} disabled={isSaving} className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold text-xs hover:bg-emerald-700 transition-all">
+                            {isSaving ? "..." : "☁️ Guardar"}
+                        </button>
+                    </div>
+                </header>
+
+                <div className="no-print flex flex-wrap gap-4 mb-8 items-center bg-white p-4 rounded-[2rem] border shadow-sm">
+                    <input 
+                        className="flex-1 min-w-[200px] p-3 rounded-xl bg-slate-50 border-none outline-none focus:ring-2 ring-indigo-500" 
+                        placeholder="Buscar por nombre..."
+                        onChange={(e) => setSearch(e.target.value)}
+                    />
+                    <div className="flex items-center gap-2">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mostrar:</label>
+                        <select 
+                            className="font-bold text-indigo-400 outline-none bg-slate-50 p-3 rounded-xl cursor-pointer"
+                            value={filterCriteria}
+                            onChange={(e) => setFilterCriteria(e.target.value)}
+                        >
+                            <option value="all_name">Todos los alumnos (A-Z)</option>
+                            <optgroup label="Solo el curso:">
+                                {COURSE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                            </optgroup>
+                        </select>
+                    </div>
+                    <button onClick={addStudent} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold hover:bg-slate-800 transition-all">+ NUEVO</button>
+                </div>
+
+                <div className="grid gap-4">
+                    {processedStudents.map(s => (
+                        <div key={s.id} className="student-card bg-white p-6 rounded-[2.5rem] flex flex-col lg:flex-row gap-6 items-center border">
+                            <div className="relative shrink-0">
+                                <div className="w-20 h-20 bg-slate-100 rounded-[1.8rem] overflow-hidden border flex items-center justify-center">
+                                    {s.photo ? <img src={s.photo} className="w-full h-full object-cover" /> : <span className="text-2xl text-slate-300">👤</span>}
+                                </div>
+                                <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => {
+                                    const reader = new FileReader();
+                                    reader.onloadend = () => setStudents(students.map(st => st.id === s.id ? {...st, photo: reader.result} : st));
+                                    if(e.target.files[0]) reader.readAsDataURL(e.target.files[0]);
+                                }} />
+                            </div>
+
+                            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 w-full">
+                                <div className="flex flex-col">
+                                    <label className="text-[12px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                                        <span className="material-icons-round text-[12px]">badge</span> Nombre
+                                    </label>
+                                    <input className="font-bold text-slate-800 border-b outline-none focus:border-indigo-500" value={s.name} onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, name: e.target.value} : st))} />
+                                </div>
+                                <div className="flex flex-col">
+                                    <label className="text-[12px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                                        <span className="material-icons-round text-[12px]">school</span> Curso
+                                    </label>
+                                    <select className="font-bold text-indigo-400 outline-none cursor-pointer" value={s.course} onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, course: e.target.value} : st))}>
+                                        {COURSE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                </div>
+                                <div className="flex flex-col">
+                                    <label className="text-[12px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                                        <span className="material-icons-round text-[12px]">phone</span> Teléfono 1
+                                    </label>
+                                    <input className="text-slate-600 border-b outline-none focus:border-indigo-500" value={s.phone1} onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, phone1: e.target.value} : st))} />
+                                </div>
+                                <div className="flex flex-col">
+                                    <label className="text-[12px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                                        <span className="material-icons-round text-[12px]">phone_iphone</span> Teléfono 2
+                                    </label>
+                                    <input className="text-slate-600 border-b outline-none focus:border-indigo-500" value={s.phone2} placeholder="Opcional" onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, phone2: e.target.value} : st))} />
+                                </div>
+                                <div className="flex flex-col">
+                                    <label className="text-[12px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
+                                        <span className="material-icons-round text-[12px]">alternate_email</span> Email
+                                    </label>
+                                    <input className="text-sm text-slate-500 border-b outline-none focus:border-indigo-500" value={s.email} onChange={(e) => setStudents(students.map(st => st.id === s.id ? {...st, email: e.target.value} : st))} />
+                                </div>
+                            </div>
+
+                            <button onClick={() => setStudents(students.filter(st => st.id !== s.id))} className="text-slate-300 hover:text-red-500 no-print">
+                                <span className="material-icons-round">delete</span>
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+</script>
+</body>
+</html>
